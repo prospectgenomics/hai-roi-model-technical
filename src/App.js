@@ -414,7 +414,6 @@ function ModelOverview() {
     {title:"Five infection types",body:"Central line infections (CLABSI), urinary catheter infections (CAUTI), C. difficile (CDI), MRSA bloodstream infections, and ventilator-associated events (VAE). Surgical site infections (SSI) are optional."},
     {title:"Cost savings from prevented infections",body:"Each infection a hospital averts saves money — extra days in the hospital, treatment, isolation, and staff time. This model uses published national cost estimates per infection type from AHRQ (2017), updated to 2024 dollars."},
     {title:"HACRP Medicare penalty reduction",body:"CMS withholds 1% of Medicare revenue from the worst-performing 25% of hospitals on infection rates. Fewer infections reduces how much of that penalty a hospital is exposed to."},
-    {title:"Comparison to doing nothing with genomics",body:"The baseline is a hospital running standard infection control with no genomic sequencing — relying on clinical signs and manual contact tracing only. The four WGS models are compared against that baseline. The ICER shows cost per additional infection prevented."},
   ];
   const excluded=[
     {title:"Infections a patient develops on their own",body:"Genomic sequencing can only help prevent infections that spread from one patient to another. It cannot prevent infections that come from a patient's own bacteria. Those are excluded."},
@@ -472,7 +471,6 @@ function ModelOverview() {
 function ModelCard({model,data,pricingMode,showQALY}) {
   const netValue    = pricingMode==="sub"?data.netValueSub:data.netValueAdHoc;
   const programCost = pricingMode==="sub"?data.programCostSub:data.programCostAdHoc;
-  const costPerHAI  = pricingMode==="sub"?data.costPerHAISub:data.costPerHAIAdHoc;
   const cpqaly      = pricingMode==="sub"?data.costPerQALYSub:data.costPerQALYAdHoc;
   const {haIsPrevented,costAvoided,hacrp,seqs} = data;
   const positive = netValue>0;
@@ -480,7 +478,6 @@ function ModelCard({model,data,pricingMode,showQALY}) {
     {k:"Sequences/yr",         v:fn(seqs),           tip:"Estimated genomes sequenced annually under this model"},
     {k:"Cost to hospital",     v:fm(programCost),     tip:"Subscription flat fee or sequences × per-sample price"},
     {k:"HAIs prevented",       v:fn(haIsPrevented.total)+(model.valueType==="future"?" *":""), tip:"Infections averted per year by this surveillance model"},
-    {k:"Cost per HAI prevented",v:costPerHAI>0?fm(costPerHAI)+"/HAI":"—", tip:"Program cost divided by infections prevented. Lower is more efficient."},
     {k:"Cost avoided",         v:fm(costAvoided.total),tip:"Hospital cost savings from prevented infections (AHRQ 2017, 2024 USD)"},
     {k:"HACRP savings",        v:fm(hacrp.saved),     tip:"Reduced exposure to CMS 1% Medicare penalty from lower HAI burden"},
     ...(showQALY?[{k:"Cost/QALY",v:cpqaly!=null?fm(cpqaly):"—",tip:"Program cost per quality-adjusted life year gained (HAI-attributable mortality × 5 QALY/death)"}]:[]),
@@ -1092,9 +1089,6 @@ export default function App() {
           {openSec.advanced&&(
             <div style={{padding:"10px 14px 14px"}}>
               <div style={{fontSize:10,color:C.txt3,marginBottom:10,lineHeight:1.4}}>Expose all hardcoded assumptions for sensitivity analysis. All parameters appear in tornado diagram.</div>
-              <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7,marginTop:4}}>Comparator (Conventional Epi)</div>
-              <Slider label="Conventional Detection Rate" value={adv.convDetRate} min={0.01} max={0.20} step={0.01}
-                onChange={v=>setAdvField("convDetRate",v)} format={pct} hint="% of transmissible clusters detected by conventional epi (no typing). Default 7%."/>
               <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7,marginTop:4}}>Cluster & Lag Model</div>
               <SInput label="Avg Cluster Size (cases)" value={adv.avgCluster} onChange={v=>setAdvField("avgCluster",Math.max(2,Math.min(12,v)))} min={2} max={12}/>
               <Slider label="M4 Reservoir ID Rate" value={adv.m4ReservoirRate} min={0.10} max={0.90} step={0.05}

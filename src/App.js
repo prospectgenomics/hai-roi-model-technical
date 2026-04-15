@@ -88,7 +88,7 @@ const TAT_DEFAULT_IDX = 3;
 const MODELS = [
   {id:"m1",label:"M1",name:"Full Surveillance",   color:C.teal,  detectionRate:0.90,interventionLagCases:1.5,envMultiplier:1.25,valueType:"immediate",desc:"All positive cultures sequenced in real time with environmental sampling. Continuous phylogenetic context."},
   {id:"m2",label:"M2",name:"Prospective Clinical",color:C.teal2, detectionRate:0.73,interventionLagCases:2.5,envMultiplier:1.0, valueType:"immediate",desc:"Every positive clinical culture sequenced as reported. Real-time phylogenetic context from clinical specimens only."},
-  {id:"m3",label:"M3",name:"Semi-Prospective",    color:C.amber, detectionRate:0.40,interventionLagCases:5.0,envMultiplier:1.0, valueType:"delayed",  desc:"Sequencing triggered when IP suspects a cluster. No prior phylogenetic context available."},
+  {id:"m3",label:"M3",name:"Semi-Prospective",    color:C.amber, detectionRate:0.40,interventionLagCases:3.0,envMultiplier:1.0, valueType:"delayed",  desc:"Sequencing triggered when IP suspects a cluster. No prior phylogenetic context available."},
   {id:"m4",label:"M4",name:"Retrospective Only",  color:"#78716c",detectionRate:0.20,interventionLagCases:8.0,envMultiplier:1.0,valueType:"future",   desc:"Outbreak declared before sequencing. Value is reservoir identification and future prevention speed."},
 ];
 
@@ -748,7 +748,7 @@ function DocumentationTab({useVar,docSec,setDocSec,highlightRef,navToRef}) {
       {label:"Transmissible fraction by HAI type",value:"CLABSI 45%, CAUTI 32%, CDI 38%, MRSA 42%, VAE 38%",basis:"Fraction of reported HAIs attributable to WGS-detectable cross-transmission. PSA: Beta distributions with SE=0.06–0.08. Needs multi-center prospective validation.",refs:["R14","R15","R20"],conf:"Moderate — single-center WGS studies"},
       {label:"Cluster interruption rate (pFrac, default 75%)",value:"75% of WGS-identified clusters successfully interrupted by IP",basis:"Contact precautions reduce MRSA transmission ~47% (Toth 2022). WGS-guided intervention likely higher. PSA mean = user slider value, SE=10%. Direct multiplier: pFrac × TRANS_FRAC × detectionRate × (1−lagFrac). Range 0–100%.",refs:["R19","R14"],conf:"Moderate — no prospective RCT"},
       {label:"Detection rates per model",value:"M1=90%, M2=73%, M3=40%, M4=20% (user-adjustable)",basis:"Expert-derived from outbreak literature. M1/M2 sampled in PSA (SE=5%/8%). M3/M4 held fixed pending empirical data. Peer review target — systematic review needed.",refs:["R13","R19","R20"],conf:"Low-Moderate — modeled, not empirical"},
-      {label:"Intervention lag",value:"Lag frac = effectiveLag / avgCluster (user-adjustable, default 5)",basis:"Bhargava 2021: fixed cluster size of 5. TAT scales lag for M1/M2 proportionally. avgCluster adjustable in Advanced panel.",refs:["R13","R19"],conf:"Moderate"},
+      {label:"Intervention lag",value:"Lag frac = effectiveLag / avgCluster (user-adjustable, default 5)",basis:"Bhargava 2021: fixed cluster size of 5. TAT scales lag for M1/M2 proportionally. avgCluster adjustable in Advanced panel. M3 lag = 3.0 (IP acts at ~case 3 of 5); M4 lag = 8.0 (outbreak declared before sequencing).",refs:["R13","R19"],conf:"Moderate"},
     ]},
     {cat:"Comparator: Conventional Epi (No Typing)", items:[
       {label:"Conventional detection rate (default 7%)",value:"7% of cross-transmission clusters detected by conventional epi",basis:"Conventional hospital IPC uses clinical signs, manual contact tracing, and epidemiological investigation only — no molecular typing. Literature: 5–15% of genomic clusters detectable by conventional surveillance. PSA SE=3%. User-adjustable 0–20%.",refs:["R19","R20"],conf:"Moderate — derived from WGS comparator studies"},
@@ -861,7 +861,7 @@ function DocumentationTab({useVar,docSec,setDocSec,highlightRef,navToRef}) {
             <Tbl rows={[
               Row(["M1 Full Surveillance","90% (PSA ±5%)","1.5 × TATscale","Real-time with environmental layer"]),
               Row(["M2 Prospective Clinical","73% (PSA ±8%)","2.5 × TATscale","Real-time clinical only"]),
-              Row(["M3 Semi-Prospective","40% (fixed)","5.0","Suspicion-triggered; no prior context"]),
+              Row(["M3 Semi-Prospective","40% (fixed)","3.0","Suspicion-triggered; IP acts at ~case 3 of avg cluster"]),
               Row(["M4 Retrospective","20% (fixed)","8.0 → capped","Forensic; uses reservoir ID rate parameter"]),
               Row(["Conventional (comparator)","7% (PSA ±3%)","8.0 → capped","No typing; manual epi only"]),
             ]} hdrs={["Model","Detection Rate","Lag Cases","Notes"]}/>

@@ -467,20 +467,21 @@ function ModelCard({model,data,pricingMode,showQALY}) {
   const {haIsPrevented,costAvoided,hacrp,seqs,incrPrev} = data;
   const positive = netValue>0;
   const rows = [
-    ["Sequences/yr",    fn(seqs)],
-    ["Cost to hospital",fm(programCost)],
-    ["HAIs prevented",  fn(haIsPrevented.total)+(model.valueType==="future"?" *":"")],
-    ["Incr. vs. conv.", incrPrev>0.1?"+"+fn(incrPrev):"—"],
-    ["ICER",            icer!=null?fm(icer)+"/HAI":"—"],
-    ["Cost avoided",    fm(costAvoided.total)],
-    ["HACRP savings",   fm(hacrp.saved)],
-    ...(showQALY?[["Cost/QALY",cpqaly!=null?fm(cpqaly):"—"]]:[] ),
+    {k:"Sequences/yr",    v:fn(seqs),           tip:"Estimated genomes sequenced annually under this model"},
+    {k:"Cost to hospital",v:fm(programCost),     tip:"Subscription flat fee or sequences × per-sample price"},
+    {k:"HAIs prevented",  v:fn(haIsPrevented.total)+(model.valueType==="future"?" *":""), tip:"HAIs averted vs. zero-intervention baseline"},
+    {k:"Incremental vs. conventional epi", v:incrPrev>0.1?"+"+fn(incrPrev):"—", tip:"Additional HAIs prevented beyond what conventional surveillance (no typing) would catch"},
+    {k:"ICER",            v:icer!=null?fm(icer)+"/HAI":"—", tip:"Incremental cost-effectiveness ratio: program cost ÷ incremental HAIs prevented vs. conventional epi. Lower is better."},
+    {k:"Cost avoided",    v:fm(costAvoided.total),tip:"Attributable HAI costs averted (AHRQ 2017, inflated to 2024 USD)"},
+    {k:"HACRP savings",   v:fm(hacrp.saved),     tip:"Reduced exposure to CMS 1% Medicare penalty from lower HAI burden"},
+    ...(showQALY?[{k:"Cost/QALY",v:cpqaly!=null?fm(cpqaly):"—",tip:"Program cost per quality-adjusted life year gained (HAI-attributable mortality × 5 QALY/death)"}]:[]),
   ];
   return (
     <div style={{background:C.s0,border:`1px solid ${positive?C.border:C.border2}`,borderRadius:10,overflow:"hidden"}}>
       <div style={{height:3,background:model.color}}/>
       <div style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`}}>
-        <div style={{fontSize:10,color:model.color,letterSpacing:"0.08em",textTransform:"uppercase",fontWeight:700,marginBottom:5}}>{model.label} · {model.name}</div>
+        <div style={{fontSize:10,color:model.color,letterSpacing:"0.08em",textTransform:"uppercase",fontWeight:700,marginBottom:3}}>{model.label} · {model.name}</div>
+        <div style={{fontSize:11,color:C.txt3,marginBottom:8,lineHeight:1.4}}>{model.desc}</div>
         <div style={{background:positive?C.tealXp:C.redPale,border:`1px solid ${positive?C.tealPale:"#fecaca"}`,borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
           <div style={{fontSize:10,color:positive?C.teal2:C.red,marginBottom:1}}>Net annual value</div>
           <div style={{fontSize:19,fontWeight:700,color:positive?C.teal:C.red,fontVariantNumeric:"tabular-nums"}}>
@@ -489,15 +490,15 @@ function ModelCard({model,data,pricingMode,showQALY}) {
         </div>
       </div>
       <div style={{padding:"0 14px 12px"}}>
-        {rows.map(([k,v])=>(
+        {rows.map(({k,v,tip})=>(
           <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.txt3,fontWeight:500}}>{k}</div>
+            <div style={{fontSize:10,color:C.txt3,fontWeight:500}} title={tip}>{k}</div>
             <div style={{fontSize:12,fontWeight:700,color:C.txt,fontVariantNumeric:"tabular-nums"}}>{v}</div>
           </div>
         ))}
       </div>
       {model.valueType==="future"&&(
-        <div style={{padding:"0 14px 10px",fontSize:9,color:C.txt3,lineHeight:1.4}}>* Future prevention via reservoir ID</div>
+        <div style={{padding:"0 14px 10px",fontSize:9,color:C.txt3,lineHeight:1.4}}>* Value is reservoir identification enabling faster future response, not direct cluster interruption</div>
       )}
     </div>
   );
@@ -977,7 +978,8 @@ export default function App() {
 
           {/* Benchmark quick-fill */}
           <div style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{fontSize:9,fontWeight:700,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:7}}>Benchmark Hospital</div>
+            <div style={{fontSize:9,fontWeight:700,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Benchmark Hospital</div>
+            <div style={{fontSize:10,color:C.txt3,marginBottom:7,lineHeight:1.4}}>Pre-filled profiles derived from NHSN national HAI rates, HCUP volume data, and Definitive Healthcare revenue benchmarks. Select one or enter your own data below.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
               {HOSPITAL_SIZES.map((h,i)=>(
                 <button key={h.id} onClick={()=>applyBench(i)}
@@ -1024,7 +1026,7 @@ export default function App() {
           <SecHeader title="HAI Counts" open={openSec.hais} onToggle={()=>toggleSec("hais")}/>
           {openSec.hais&&(
             <div style={{padding:"10px 14px"}}>
-              <div style={{fontSize:10,color:C.txt3,marginBottom:8,lineHeight:1.4}}>Annual NHSN-reported events. Benchmark fill or enter your data.</div>
+              <div style={{fontSize:10,color:C.txt3,marginBottom:8,lineHeight:1.4}}>Annual NHSN-reported HAI events at your hospital. These drive the prevention calculation — the model applies transmissible fraction and detection rate to each type to estimate cases averted. Use your NHSN SIR dashboard or enter benchmark values above.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
                 {["clabsi","cauti","cdi","mrsa","vae","ssi"].map(t=>(
                   <SInput key={t} label={HAI_LABELS[t]} value={hospital.hais[t]||0} onChange={v=>setField(`hais.${t}`,v)}/>
@@ -1037,7 +1039,7 @@ export default function App() {
           <SecHeader title="Culture Volumes" open={openSec.cultures} onToggle={()=>toggleSec("cultures")}/>
           {openSec.cultures&&(
             <div style={{padding:"10px 14px"}}>
-              <div style={{fontSize:10,color:C.txt3,marginBottom:8,lineHeight:1.4}}>Annual positive culture counts — sequencing denominator.</div>
+              <div style={{fontSize:10,color:C.txt3,marginBottom:8,lineHeight:1.4}}>Annual positive culture counts by organism — these determine how many genomes get sequenced each year. M1 sequences all of them (plus environmental), M2 sequences all, M3 sequences ~30%, M4 ~12%. This number × per-sample price = ad hoc program cost.</div>
               {Object.entries(CULTURE_LABELS).map(([key,label])=>(
                 <SInput key={key} label={label} value={hospital.cultureVolumes[key]||0} onChange={v=>setField(`cultureVolumes.${key}`,v)}/>
               ))}
@@ -1055,10 +1057,11 @@ export default function App() {
                 onChange={setSubFee} format={v=>`$${(v/1000).toFixed(0)}K/yr`} hint="Flat fee to hospital — sequencing, analysis, software, support."/>
               <Slider label="Ad Hoc Price / Sample" value={adHocPrice} min={175} max={500} step={5}
                 onChange={setAdHocPrice} format={v=>`$${v}/sample`} hint="Floor $175 (50% margin). Typical: $250–350."/>
-              <Toggle on={incSSI} onClick={()=>setIncSSI(!incSSI)} labelOn="SSI Included" labelOff="SSI Excluded" note="Include wound cultures in sequencing volume"/>
-              <Toggle on={showQALY} onClick={()=>setShowQALY(!showQALY)} labelOn="QALY Layer On" labelOff="QALY Layer Off" note="Show cost per QALY on model cards"/>
+              <Toggle on={incSSI} onClick={()=>setIncSSI(!incSSI)} labelOn="SSI Included" labelOff="SSI Excluded" note="Include surgical site infections — adds wound culture volume and SSI HAI counts to the model"/>
+              <Toggle on={showQALY} onClick={()=>setShowQALY(!showQALY)} labelOn="QALY Layer On" labelOff="QALY Layer Off" note="Show cost per quality-adjusted life year on each model card, using HAI mortality rates and 5 QALYs per death averted"/>
               <div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
-                <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:700,marginBottom:7}}>Cost Perspective</div>
+                <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:700,marginBottom:3}}>Cost Perspective</div>
+                <div style={{fontSize:10,color:C.txt3,marginBottom:7,lineHeight:1.4}}>Total = full attributable HAI cost. Variable = avoidable portion only (~65%), the more conservative and methodologically preferred estimate for hospital budgeting (Graves 2007).</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
                   {[["total","Total costs","Full attributable"],["variable","Variable costs","65% · conservative"]].map(([val,label,note])=>{
                     const active=(!useVar&&val==="total")||(useVar&&val==="variable");
@@ -1090,11 +1093,13 @@ export default function App() {
               <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7,marginTop:4}}>HACRP Model</div>
               <Slider label="HACRP Baseline Exposure" value={adv.hacExpFrac} min={0.10} max={0.80} step={0.05}
                 onChange={v=>setAdvField("hacExpFrac",v)} format={pct} hint="Fraction of max penalty hospitals are exposed to at baseline. Default 40%. Binary in reality — modeled continuously."/>
-              <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7,marginTop:4}}>Detection Rates by Model</div>
-              {MODELS.map(m=>(
-                <Slider key={m.id} label={`${m.label} Detection Rate`} value={adv.detRates[m.id]} min={0.05} max={1.0} step={0.05}
-                  onChange={v=>setDetRate(m.id,v)} format={pct}/>
-              ))}
+              <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3,marginTop:4}}>Detection Rates by Model</div>
+              <div style={{fontSize:10,color:C.txt3,marginBottom:8,lineHeight:1.4}}>Fraction of true genomic transmission clusters that each model would detect. Expert-derived from outbreak literature; M1/M2 are sampled in PSA, M3/M4 held fixed.</div>
+              {MODELS.map((m,i)=>{
+                const hints=["Real-time full surveillance: 90% default. High confidence from prospective WGS programs.","Prospective clinical only: 73% default. Loses environmental transmission signal vs M1.","Suspicion-triggered: 40% default. Misses clusters without obvious clinical signal.","Retrospective only: 20% default. Most clusters fully evolved before sequencing begins."];
+                return <Slider key={m.id} label={`${m.label} Detection Rate`} value={adv.detRates[m.id]} min={0.05} max={1.0} step={0.05}
+                  onChange={v=>setDetRate(m.id,v)} format={pct} hint={hints[i]}/>;
+              })}
             </div>
           )}
         </div>
@@ -1127,8 +1132,19 @@ export default function App() {
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                 {MODELS.map(m=><ModelCard key={m.id} model={m} data={allData[m.id]} pricingMode={pricingMode} showQALY={showQALY}/>)}
               </div>
-              <div style={{marginTop:14,padding:"12px 16px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,fontSize:11,color:C.txt3}}>
-                <strong style={{color:C.txt2}}>Conventional baseline</strong> (no typing): {fn(convData.prev.total)} HAIs prevented/yr · cost to hospital: $0 incremental · HACRP savings: {fm(convData.hacrp.saved)} · <strong>ICER = WGS cost ÷ incremental HAIs prevented vs. conventional</strong>
+              <div style={{marginTop:14,padding:"14px 16px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Conventional epi comparator (no typing)</div>
+                <div style={{fontSize:11,color:C.txt3,lineHeight:1.6,marginBottom:8}}>
+                  The baseline against which all four models are measured. Conventional IPC uses clinical signs and manual contact tracing — no molecular typing. It detects ~7% of genomic clusters with an 8-case average lag. Cost to hospital: $0 incremental (IP staff costs are the same under both arms).
+                </div>
+                <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+                  {[["HAIs prevented",fn(convData.prev.total)+"/yr"],["HACRP savings",fm(convData.hacrp.saved)],["Program cost","$0 incremental"],["ICER benchmark","WGS cost ÷ incremental HAIs vs. this"]].map(([k,v])=>(
+                    <div key={k}>
+                      <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{k}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:C.txt2,fontVariantNumeric:"tabular-nums"}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

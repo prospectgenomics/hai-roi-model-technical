@@ -2,6 +2,8 @@
 
 **Prospect Genomics** — Full decision-analytic model for peer review and publication
 
+**Live app:** https://prospectgenomics.github.io/hai-roi-model-technical/
+
 **Private repository** — not for public distribution prior to manuscript submission.
 
 ---
@@ -36,6 +38,30 @@ The simplified sales-facing version of this tool lives at: `prospectgenomics/hai
 | Sub vs. Ad Hoc | Pricing comparison, crossover analysis |
 | PSA & Sensitivity | Monte Carlo results + tornado diagram |
 | Documentation | Assumptions, methods, formula, all 28 references |
+
+---
+
+## Controls & parameters reference
+
+| Control | Default | Range | What it does |
+|---|---|---|---|
+| **Benchmark Hospital** | Medium | Small / Medium / Large / Academic | Pre-filled profiles from NHSN national HAI rates, HCUP volume data, and Definitive Healthcare revenue benchmarks |
+| **Total Revenue ($M)** | $175M | Any | Sets the Medicare revenue base for HACRP penalty calculation |
+| **Medicare Revenue %** | 23% | 10–45% | Fraction of revenue from Medicare FFS — scales the max 1% HACRP penalty |
+| **HAI Counts** | Benchmark | Any | Annual NHSN-reported events by type. Drives the prevention calculation directly. |
+| **Culture Volumes** | Benchmark | Any | Annual positive cultures by organism. Determines sequences/yr and ad hoc program cost. |
+| **Cluster Interruption Rate (pFrac)** | 75% | 0–100% | % of WGS-identified clusters that IP successfully interrupts. Core efficacy assumption. Literature: 47–85% (Toth 2022). |
+| **Sequencing TAT** | 3 days | 12 hr – 3 mo | Turnaround time from sample to result. Affects M1 and M2 only — longer TAT increases intervention lag. |
+| **Annual Subscription Fee** | $100K/yr | $25K–$300K | Flat program cost for subscription pricing model |
+| **Ad Hoc Price / Sample** | $300 | $175–$500 | Per-genome price for pay-per-use model. Floor $175 = ~50% margin. |
+| **SSI toggle** | Off | On/Off | Includes surgical site infections in HAI counts and culture volumes |
+| **QALY layer toggle** | Off | On/Off | Shows cost per QALY on model cards using HAI mortality rates × 5 QALYs/death |
+| **Cost Perspective** | Total | Total / Variable | Total = full attributable HAI cost. Variable = avoidable ~65% (Graves 2007) — preferred for hospital budgeting. |
+| **Conventional Detection Rate** *(Advanced)* | 7% | 1–20% | % of genomic clusters detectable by conventional epi with no typing. PSA SE = 3%. |
+| **Avg Cluster Size** *(Advanced)* | 5 cases | 2–12 | Average transmission cluster size before intervention. Scales the lag fraction. |
+| **M4 Reservoir ID Rate** *(Advanced)* | 55% | 10–90% | M4 only: % of retrospective outbreaks where WGS identifies a persistent reservoir (Bhargava 2021). |
+| **HACRP Baseline Exposure** *(Advanced)* | 40% | 10–80% | Fraction of max Medicare penalty the hospital is currently exposed to. Continuous approximation of binary CMS threshold. |
+| **Detection Rates M1–M4** *(Advanced)* | 90/73/40/20% | 5–100% | Fraction of true genomic clusters each model detects. Expert-derived; M1/M2 sampled in PSA. |
 
 ---
 

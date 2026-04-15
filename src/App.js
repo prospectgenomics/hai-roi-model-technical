@@ -429,13 +429,6 @@ function ModelOverview() {
         Estimates the annual financial return of whole-genome sequencing for hospital infection prevention
       </div>
 
-      {/* Plain-English explanation */}
-      <div style={{fontSize:13,color:C.txt2,lineHeight:1.75,marginBottom:18,maxWidth:760}}>
-        Hospitals use whole-genome sequencing (WGS) to read the DNA of bacteria from patient cultures. When two patients have nearly identical bacterial genomes, it means one likely caught the infection from the other — something you can't tell from standard lab results alone. Knowing this lets infection prevention teams intervene faster and stop outbreaks before they grow.
-        <br/><br/>
-        This model estimates what that earlier detection is worth to a hospital, in dollars, over one year. It compares four levels of WGS surveillance — from sequencing every positive culture in real time, to only sequencing after an outbreak is already declared — against a hospital doing standard infection control with no genomic testing. For each approach, it calculates how many infections would be prevented, what those prevented infections save, and whether that savings exceeds the cost of the program.
-      </div>
-
       {/* Formula strip */}
       <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",background:C.tealXp,border:`1px solid ${C.tealPale}`,borderRadius:8,padding:"12px 14px",marginBottom:20}}>
         {eq.map((item,i)=>item.op?(

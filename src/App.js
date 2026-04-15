@@ -472,18 +472,17 @@ function ModelOverview() {
 function ModelCard({model,data,pricingMode,showQALY}) {
   const netValue    = pricingMode==="sub"?data.netValueSub:data.netValueAdHoc;
   const programCost = pricingMode==="sub"?data.programCostSub:data.programCostAdHoc;
-  const icer        = pricingMode==="sub"?data.icerSub:data.icerAdHoc;
+  const costPerHAI  = pricingMode==="sub"?data.costPerHAISub:data.costPerHAIAdHoc;
   const cpqaly      = pricingMode==="sub"?data.costPerQALYSub:data.costPerQALYAdHoc;
-  const {haIsPrevented,costAvoided,hacrp,seqs,incrPrev} = data;
+  const {haIsPrevented,costAvoided,hacrp,seqs} = data;
   const positive = netValue>0;
   const rows = [
-    {k:"Sequences/yr",    v:fn(seqs),           tip:"Estimated genomes sequenced annually under this model"},
-    {k:"Cost to hospital",v:fm(programCost),     tip:"Subscription flat fee or sequences × per-sample price"},
-    {k:"HAIs prevented",  v:fn(haIsPrevented.total)+(model.valueType==="future"?" *":""), tip:"HAIs averted vs. zero-intervention baseline"},
-    {k:"Incremental vs. conventional epi", v:incrPrev>0.1?"+"+fn(incrPrev):"—", tip:"Additional HAIs prevented beyond what conventional surveillance (no typing) would catch"},
-    {k:"ICER",            v:icer!=null?fm(icer)+"/HAI":"—", tip:"Incremental cost-effectiveness ratio: program cost ÷ incremental HAIs prevented vs. conventional epi. Lower is better."},
-    {k:"Cost avoided",    v:fm(costAvoided.total),tip:"Attributable HAI costs averted (AHRQ 2017, inflated to 2024 USD)"},
-    {k:"HACRP savings",   v:fm(hacrp.saved),     tip:"Reduced exposure to CMS 1% Medicare penalty from lower HAI burden"},
+    {k:"Sequences/yr",         v:fn(seqs),           tip:"Estimated genomes sequenced annually under this model"},
+    {k:"Cost to hospital",     v:fm(programCost),     tip:"Subscription flat fee or sequences × per-sample price"},
+    {k:"HAIs prevented",       v:fn(haIsPrevented.total)+(model.valueType==="future"?" *":""), tip:"Infections averted per year by this surveillance model"},
+    {k:"Cost per HAI prevented",v:costPerHAI>0?fm(costPerHAI)+"/HAI":"—", tip:"Program cost divided by infections prevented. Lower is more efficient."},
+    {k:"Cost avoided",         v:fm(costAvoided.total),tip:"Hospital cost savings from prevented infections (AHRQ 2017, 2024 USD)"},
+    {k:"HACRP savings",        v:fm(hacrp.saved),     tip:"Reduced exposure to CMS 1% Medicare penalty from lower HAI burden"},
     ...(showQALY?[{k:"Cost/QALY",v:cpqaly!=null?fm(cpqaly):"—",tip:"Program cost per quality-adjusted life year gained (HAI-attributable mortality × 5 QALY/death)"}]:[]),
   ];
   return (
@@ -950,7 +949,7 @@ export default function App() {
   const applyBench = i => { setBenchIdx(i); setHospital({...HOSPITAL_SIZES[i]}); };
   const toggleSec  = k => setOpenSec(s=>({...s,[k]:!s[k]}));
 
-  const {data:allData,totalHAIs,convData} = useMemo(
+  const {data:allData,totalHAIs} = useMemo(
     ()=>runAll(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv),
     [hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv]
   );
@@ -1021,7 +1020,7 @@ export default function App() {
               </div>
               <div style={{padding:"8px 10px",background:C.tealXp,border:`1px solid ${C.tealPale}`,borderRadius:7,marginTop:6}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  {[["Medicare rev.",fm(medRev)],["Max HACRP penalty",fm(medRev*0.01)],["Total HAIs/yr",totalHAIs],["No-typing baseline",fn(convData.prev.total)+" prevented/yr"]].map(([k,v])=>(
+                  {[["Medicare rev.",fm(medRev)],["Max HACRP penalty",fm(medRev*0.01)],["Total HAIs/yr",totalHAIs]].map(([k,v])=>(
                     <div key={k}>
                       <div style={{fontSize:9,color:C.teal,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{k}</div>
                       <div style={{fontSize:12,fontWeight:700,color:C.teal,fontVariantNumeric:"tabular-nums"}}>{v}</div>
@@ -1141,20 +1140,6 @@ export default function App() {
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                 {MODELS.map(m=><ModelCard key={m.id} model={m} data={allData[m.id]} pricingMode={pricingMode} showQALY={showQALY}/>)}
-              </div>
-              <div style={{marginTop:14,padding:"14px 16px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8}}>
-                <div style={{fontSize:10,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Conventional epi comparator (no typing)</div>
-                <div style={{fontSize:11,color:C.txt3,lineHeight:1.6,marginBottom:8}}>
-                  The baseline against which all four models are measured. Conventional IPC uses clinical signs and manual contact tracing — no molecular typing. It detects ~7% of genomic clusters with an 8-case average lag. Cost to hospital: $0 incremental (IP staff costs are the same under both arms).
-                </div>
-                <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-                  {[["HAIs prevented",fn(convData.prev.total)+"/yr"],["HACRP savings",fm(convData.hacrp.saved)],["Program cost","$0 incremental"],["ICER benchmark","WGS cost ÷ incremental HAIs vs. this"]].map(([k,v])=>(
-                    <div key={k}>
-                      <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{k}</div>
-                      <div style={{fontSize:12,fontWeight:700,color:C.txt2,fontVariantNumeric:"tabular-nums"}}>{v}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}

@@ -404,19 +404,40 @@ function SecHeader({title,open,onToggle,badge}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function ModelOverview() {
   const eq=[
-    {label:"HAIs prevented",sub:"Cross-transmission clusters detected earlier",color:C.teal},{op:"×"},
-    {label:"Cost per HAI",sub:"Total attributable · 2024 USD",color:C.teal},{op:"+"},
+    {label:"Infections prevented",sub:"Patient-to-patient spread caught earlier",color:C.teal},{op:"×"},
+    {label:"Cost per infection",sub:"Published cost per HAI type · 2024 USD",color:C.teal},{op:"+"},
     {label:"HACRP savings",sub:"Medicare penalty reduction",color:C.teal},{op:"−"},
-    {label:"Cost to hospital",sub:"Subscription or per-sample",color:C.txt2},{op:"="},
-    {label:"Net annual value",sub:"Hospital perspective · 1 year",color:C.green},
+    {label:"Program cost",sub:"Subscription or per-sample fee",color:C.txt2},{op:"="},
+    {label:"Net annual value",sub:"To the hospital · 1-year horizon",color:C.green},
+  ];
+  const included=[
+    {title:"Five infection types",body:"Central line infections (CLABSI), urinary catheter infections (CAUTI), C. difficile (CDI), MRSA bloodstream infections, and ventilator-associated events (VAE). Surgical site infections (SSI) are optional."},
+    {title:"Cost savings from prevented infections",body:"Each infection a hospital averts saves money — extra days in the hospital, treatment, isolation, and staff time. This model uses published national cost estimates per infection type from AHRQ (2017), updated to 2024 dollars."},
+    {title:"HACRP Medicare penalty reduction",body:"CMS withholds 1% of Medicare revenue from the worst-performing 25% of hospitals on infection rates. Fewer infections reduces how much of that penalty a hospital is exposed to."},
+    {title:"Comparison to doing nothing with genomics",body:"The baseline is a hospital running standard infection control with no genomic sequencing — relying on clinical signs and manual contact tracing only. The four WGS models are compared against that baseline. The ICER shows cost per additional infection prevented."},
+  ];
+  const excluded=[
+    {title:"Infections a patient develops on their own",body:"Genomic sequencing can only help prevent infections that spread from one patient to another. It cannot prevent infections that come from a patient's own bacteria. Those are excluded."},
+    {title:"Value of ruling out an outbreak",body:"WGS is also valuable when it confirms that cases are unrelated — preventing unnecessary ward closures, cohorting, or OR shutdowns. This conservative model does not count that value."},
+    {title:"Societal or downstream costs",body:"Readmissions, litigation, long-term patient morbidity, and lost productivity are not included. Hospital direct costs only."},
+    {title:"NTM, Candida auris, and other emerging pathogens",body:"The model covers the five core NHSN-tracked HAI types. Organisms like NTM or C. auris, where WGS is increasingly used, are not yet included."},
   ];
   return (
     <div style={{background:C.s0,border:`1px solid ${C.border}`,borderRadius:10,padding:"20px 22px",marginBottom:18}}>
-      <div style={{fontSize:10,color:C.teal,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700,marginBottom:5}}>How this model works</div>
-      <div style={{fontSize:17,fontWeight:700,fontFamily:FONT_DISPLAY,color:C.txt,marginBottom:14,lineHeight:1.3}}>
-        Cost-benefit analysis of WGS surveillance vs. conventional epi (no typing)
+      <div style={{fontSize:10,color:C.teal,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700,marginBottom:5}}>What this model does</div>
+      <div style={{fontSize:17,fontWeight:700,fontFamily:FONT_DISPLAY,color:C.txt,marginBottom:12,lineHeight:1.3}}>
+        Estimates the annual financial return of whole-genome sequencing for hospital infection prevention
       </div>
-      <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",background:C.tealXp,border:`1px solid ${C.tealPale}`,borderRadius:8,padding:"12px 14px",marginBottom:18}}>
+
+      {/* Plain-English explanation */}
+      <div style={{fontSize:13,color:C.txt2,lineHeight:1.75,marginBottom:18,maxWidth:760}}>
+        Hospitals use whole-genome sequencing (WGS) to read the DNA of bacteria from patient cultures. When two patients have nearly identical bacterial genomes, it means one likely caught the infection from the other — something you can't tell from standard lab results alone. Knowing this lets infection prevention teams intervene faster and stop outbreaks before they grow.
+        <br/><br/>
+        This model estimates what that earlier detection is worth to a hospital, in dollars, over one year. It compares four levels of WGS surveillance — from sequencing every positive culture in real time, to only sequencing after an outbreak is already declared — against a hospital doing standard infection control with no genomic testing. For each approach, it calculates how many infections would be prevented, what those prevented infections save, and whether that savings exceeds the cost of the program.
+      </div>
+
+      {/* Formula strip */}
+      <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",background:C.tealXp,border:`1px solid ${C.tealPale}`,borderRadius:8,padding:"12px 14px",marginBottom:20}}>
         {eq.map((item,i)=>item.op?(
           <div key={i} style={{fontSize:16,color:C.txt3,fontWeight:300,padding:"0 7px"}}>{item.op}</div>
         ):(
@@ -426,28 +447,24 @@ function ModelOverview() {
           </div>
         ))}
       </div>
+
+      {/* Included / Excluded */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
         <div>
-          <div style={{fontSize:9,fontWeight:700,color:C.teal,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.07em"}}>Included</div>
-          {["NHSN HAIs: CLABSI, CAUTI, CDI, MRSA bacteremia, VAE (SSI optional)",
-            "Attributable costs from WGS-detected cross-transmission clusters",
-            "HACRP Medicare penalty reduction (1% of Medicare FFS revenue)",
-            "Incremental cost vs. conventional epi baseline (no typing) · ICER reported"].map((t,i)=>(
-            <div key={i} style={{display:"flex",gap:7,marginBottom:6,alignItems:"flex-start"}}>
-              <div style={{width:3,height:3,borderRadius:"50%",background:C.teal,marginTop:5,flexShrink:0}}/>
-              <div style={{fontSize:11,color:C.txt2,lineHeight:1.5}}>{t}</div>
+          <div style={{fontSize:9,fontWeight:700,color:C.teal,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.07em"}}>What's counted</div>
+          {included.map(({title,body})=>(
+            <div key={title} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.txt,marginBottom:3}}>{title}</div>
+              <div style={{fontSize:11,color:C.txt2,lineHeight:1.55}}>{body}</div>
             </div>
           ))}
         </div>
         <div>
-          <div style={{fontSize:9,fontWeight:700,color:C.txt3,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.07em"}}>Not included</div>
-          {["Value of ruling out transmission — prevents unnecessary OR closures & cohorting",
-            "Societal costs, readmissions, litigation, or long-term morbidity",
-            "NTM, Candida auris, or non-NHSN pathogen outbreaks",
-            "Staff time for IP investigation (same under both arms)"].map((t,i)=>(
-            <div key={i} style={{display:"flex",gap:7,marginBottom:6,alignItems:"flex-start"}}>
-              <div style={{width:3,height:3,borderRadius:"50%",background:C.border2,marginTop:5,flexShrink:0}}/>
-              <div style={{fontSize:11,color:C.txt3,lineHeight:1.5}}>{t}</div>
+          <div style={{fontSize:9,fontWeight:700,color:C.txt3,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.07em"}}>What's not counted</div>
+          {excluded.map(({title,body})=>(
+            <div key={title} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.txt3,marginBottom:3}}>{title}</div>
+              <div style={{fontSize:11,color:C.txt3,lineHeight:1.55}}>{body}</div>
             </div>
           ))}
         </div>
@@ -1011,7 +1028,7 @@ export default function App() {
               </div>
               <div style={{padding:"8px 10px",background:C.tealXp,border:`1px solid ${C.tealPale}`,borderRadius:7,marginTop:6}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  {[["Medicare rev.",fm(medRev)],["Max HACRP",fm(medRev*0.01)],["Total HAIs",totalHAIs],["Conv. prev.",fn(convData.prev.total)]].map(([k,v])=>(
+                  {[["Medicare rev.",fm(medRev)],["Max HACRP penalty",fm(medRev*0.01)],["Total HAIs/yr",totalHAIs],["No-typing baseline",fn(convData.prev.total)+" prevented/yr"]].map(([k,v])=>(
                     <div key={k}>
                       <div style={{fontSize:9,color:C.teal,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{k}</div>
                       <div style={{fontSize:12,fontWeight:700,color:C.teal,fontVariantNumeric:"tabular-nums"}}>{v}</div>

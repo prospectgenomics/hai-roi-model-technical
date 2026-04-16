@@ -135,19 +135,18 @@ function calcCosts(byType, costTable) {
   return {total,breakdown};
 }
 
-// hacExpFrac: fraction of hospitals near HACRP threshold (~40% baseline)
-function calcHACRP(hosp, totalHAIs, prevented, hacExpFrac=0.40) {
+// HACRP: binary — hospital either receives the 1% Medicare penalty or it doesn't
+function calcHACRP(hosp, inHACRP) {
   const mr=hosp.totalRevenueMn*1e6*hosp.medicareRevenuePct;
-  const maxP=mr*0.01, base=maxP*hacExpFrac;
-  const rf=Math.min(prevented/Math.max(totalHAIs,1),0.85);
-  return {maxPenalty:maxP,baselineExposure:base,reducedExposure:base*(1-rf),saved:base*rf};
+  const maxPenalty=mr*0.01;
+  return {maxPenalty, saved: inHACRP ? maxPenalty : 0};
 }
 
-// Full model run with conventional comparator
-// adv: {convDetRate, avgCluster, hacExpFrac, m4ReservoirRate, detRates, transFrac?, costOverride?}
-function runAll(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv={}) {
+// Full model run
+// adv: {convDetRate, avgCluster, m4ReservoirRate, detRates, transFrac?, costOverride?}
+function runAll(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv={}, inHACRP=false) {
   const {
-    convDetRate=0.07, avgCluster=AVG_CLUSTER_SIZE, hacExpFrac=0.40,
+    avgCluster=AVG_CLUSTER_SIZE,
     m4ReservoirRate=0.55, detRates={}, transFrac=TRANS_FRAC, costOverride,
   } = adv;
   const totalHAIs = Object.entries(hosp.hais).reduce((a,[k,v])=>k!=="ssi"||incSSI?a+v:a,0);
@@ -155,13 +154,7 @@ function runAll(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv={})
   const costTable = costOverride||baseCostTable;
   const calcAdv = {avgCluster,m4ReservoirRate,transFrac};
 
-  // Conventional epi baseline (no typing, slow manual investigation)
-  const convModel = {id:"conv",detectionRate:convDetRate,interventionLagCases:8,valueType:"immediate"};
-  const convPrev  = calcPrevented(hosp,convModel,pFrac,incSSI,tatIdx,calcAdv);
-  const convCost  = calcCosts(convPrev.byType,costTable);
-  const convHAIAP = calcHACRP(hosp,totalHAIs,convPrev.total,hacExpFrac);
-  const convBenefit = convCost.total+convHAIAP.saved;
-  const convQALY = Object.entries(convPrev.byType).reduce((a,[t,n])=>a+n*(HAI_MORTALITY[t]||0)*QALY_PER_DEATH,0);
+  const hacrp = calcHACRP(hosp, inHACRP);
 
   const out={};
   for (const model of MODELS) {
@@ -170,13 +163,9 @@ function runAll(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv={})
     const seqs     = calcSeqs(hosp,model,incSSI);
     const prev     = calcPrevented(hosp,mAdj,pFrac,incSSI,tatIdx,calcAdv);
     const cost     = calcCosts(prev.byType,costTable);
-    const hacrp    = calcHACRP(hosp,totalHAIs,prev.total,hacExpFrac);
     const benefit  = cost.total+hacrp.saved;
     const progSub  = subFee, progAH = seqs*adHocPrice;
     const qalyGained = Object.entries(prev.byType).reduce((a,[t,n])=>a+n*(HAI_MORTALITY[t]||0)*QALY_PER_DEATH,0);
-    const incrPrev  = Math.max(0,prev.total-convPrev.total);
-    const incrBen   = benefit-convBenefit;
-    const incrQALY  = Math.max(0,qalyGained-convQALY);
     out[model.id]={
       seqs,haIsPrevented:prev,costAvoided:cost,hacrp,
       programCostSub:progSub,programCostAdHoc:progAH,
@@ -184,16 +173,12 @@ function runAll(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv={})
       costPerHAISub:prev.total>0.5?progSub/prev.total:0,
       costPerHAIAdHoc:prev.total>0.5?progAH/prev.total:0,
       seqsPerHAI:prev.total>0.5?seqs/prev.total:0,
-      incrPrev,incrBen,
-      icerSub:incrPrev>0.1?progSub/incrPrev:null,
-      icerAdHoc:incrPrev>0.1?progAH/incrPrev:null,
-      netIncrSub:incrBen-progSub,netIncrAdHoc:incrBen-progAH,
-      qalyGained,incrQALY,
-      costPerQALYSub:incrQALY>0.01?progSub/incrQALY:null,
-      costPerQALYAdHoc:incrQALY>0.01?progAH/incrQALY:null,
+      qalyGained,
+      costPerQALYSub:qalyGained>0.01?progSub/qalyGained:null,
+      costPerQALYAdHoc:qalyGained>0.01?progAH/qalyGained:null,
     };
   }
-  return {data:out,totalHAIs,convData:{prev:convPrev,cost:convCost,hacrp:convHAIAP}};
+  return {data:out,totalHAIs};
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +211,7 @@ function sampleGamma(mean,se) {
   return Math.max(gammaSample(shape)*scale, mean*0.1);
 }
 
-function runPSA(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv, n=1000) {
+function runPSA(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv, inHACRP=false, n=1000) {
   const out = MODELS.reduce((acc,m)=>({...acc,[m.id]:{sub:[],adhoc:[]}}),{});
   for (let i=0;i<n;i++) {
     const sAdv = {
@@ -250,11 +235,9 @@ function runPSA(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv, n=
         m3:adv.detRates?.m3??0.40,
         m4:adv.detRates?.m4??0.20,
       },
-      hacExpFrac:sampleBeta(adv.hacExpFrac??0.40,0.10),
-      convDetRate:sampleBeta(adv.convDetRate??0.07,0.03),
     };
     const sampledPFrac = sampleBeta(pFrac,0.10);
-    const {data} = runAll(hosp,sampledPFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,sAdv);
+    const {data} = runAll(hosp,sampledPFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,sAdv,inHACRP);
     for (const m of MODELS) {
       out[m.id].sub.push(data[m.id].netValueSub);
       out[m.id].adhoc.push(data[m.id].netValueAdHoc);
@@ -267,16 +250,16 @@ function runPSA(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv, n=
   return MODELS.reduce((acc,m)=>({...acc,[m.id]:{sub:summarize(out[m.id].sub),adhoc:summarize(out[m.id].adhoc)}}),{});
 }
 
-function computeTornado(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv, modelId, pricingMode) {
-  const base = runAll(hosp,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv);
+function computeTornado(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx, adv, inHACRP, modelId, pricingMode) {
+  const base = runAll(hosp,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP);
   const baseNet = pricingMode==="sub"?base.data[modelId].netValueSub:base.data[modelId].netValueAdHoc;
   const bct = useVar?HAI_COSTS_VARIABLE:HAI_COSTS_TOTAL;
   const getNet = res => pricingMode==="sub"?res.data[modelId].netValueSub:res.data[modelId].netValueAdHoc;
-  const run = a => runAll(hosp,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,a);
+  const run = a => runAll(hosp,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,a,inHACRP);
   const params = [
     {label:"Cluster interruption rate (pFrac)",
-      loNet:getNet(runAll(hosp,0.47,subFee,adHocPrice,incSSI,useVar,tatIdx,adv)),
-      hiNet:getNet(runAll(hosp,0.95,subFee,adHocPrice,incSSI,useVar,tatIdx,adv))},
+      loNet:getNet(runAll(hosp,0.47,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP)),
+      hiNet:getNet(runAll(hosp,0.95,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP))},
     {label:"Trans. frac. CLABSI",
       loNet:getNet(run({...adv,transFrac:{...TRANS_FRAC,clabsi:0.30}})),
       hiNet:getNet(run({...adv,transFrac:{...TRANS_FRAC,clabsi:0.60}}))},
@@ -292,12 +275,6 @@ function computeTornado(hosp, pFrac, subFee, adHocPrice, incSSI, useVar, tatIdx,
     {label:"Cost/case MRSA",
       loNet:getNet(run({...adv,costOverride:{...bct,mrsa:32000}})),
       hiNet:getNet(run({...adv,costOverride:{...bct,mrsa:76000}}))},
-    {label:"HACRP exposure fraction",
-      loNet:getNet(run({...adv,hacExpFrac:0.20})),
-      hiNet:getNet(run({...adv,hacExpFrac:0.60}))},
-    {label:"Conventional detection rate",
-      loNet:getNet(run({...adv,convDetRate:0.03})),
-      hiNet:getNet(run({...adv,convDetRate:0.15}))},
     {label:"M4 reservoir ID rate",
       loNet:getNet(run({...adv,m4ReservoirRate:0.30})),
       hiNet:getNet(run({...adv,m4ReservoirRate:0.75}))},
@@ -595,22 +572,22 @@ function TornadoChart({data}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PSA TAB
 // ─────────────────────────────────────────────────────────────────────────────
-function PSATab({hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,pricingMode,setPricingMode}) {
+function PSATab({hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP,pricingMode,setPricingMode}) {
   const [psaResults,setPsaResults] = useState(null);
   const [running,setRunning]       = useState(false);
   const [psaN,setPsaN]             = useState(1000);
   const [tornModel,setTornModel]   = useState("m1");
 
   const tornadoData = useMemo(()=>
-    computeTornado(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,tornModel,pricingMode),
-    [hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,tornModel,pricingMode]
+    computeTornado(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP,tornModel,pricingMode),
+    [hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP,tornModel,pricingMode]
   );
 
   const runClick = () => {
     setRunning(true);
     setTimeout(()=>{
       try {
-        const r = runPSA(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,psaN);
+        const r = runPSA(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP,psaN);
         setPsaResults({...r,n:psaN,mode:pricingMode});
       } finally { setRunning(false); }
     },10);
@@ -917,6 +894,7 @@ export default function App() {
   const [tab,         setTab]         = useState("overview");
   const [pricingMode,  setPricingMode]  = useState("sub");
   const [showQALY,     setShowQALY]     = useState(false);
+  const [inHACRP,      setInHACRP]      = useState(false);
   const [openSec,      setOpenSec]      = useState({profile:true,hais:true,cultures:false,assumptions:true,advanced:false});
   const [docSec,       setDocSec]       = useState("assumptions");
   const [highlightRef, setHighlightRef] = useState(null);
@@ -925,9 +903,7 @@ export default function App() {
 
   // Advanced parameters (all user-adjustable)
   const [adv, setAdv] = useState({
-    convDetRate:    0.07,
     avgCluster:     5,
-    hacExpFrac:     0.40,
     m4ReservoirRate:0.55,
     detRates:{m1:0.90,m2:0.73,m3:0.40,m4:0.20},
   });
@@ -947,8 +923,8 @@ export default function App() {
   const toggleSec  = k => setOpenSec(s=>({...s,[k]:!s[k]}));
 
   const {data:allData,totalHAIs} = useMemo(
-    ()=>runAll(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv),
-    [hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv]
+    ()=>runAll(hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP),
+    [hospital,pFrac,subFee,adHocPrice,incSSI,useVar,tatIdx,adv,inHACRP]
   );
   const costTable = useVar?HAI_COSTS_VARIABLE:HAI_COSTS_TOTAL;
   const medRev    = hospital.totalRevenueMn*1e6*hospital.medicareRevenuePct;
@@ -1065,6 +1041,8 @@ export default function App() {
                 onChange={setAdHocPrice} format={v=>`$${v}/sample`} hint="Floor $175 (50% margin). Typical: $250–350."/>
               <Toggle on={incSSI} onClick={()=>setIncSSI(!incSSI)} labelOn="SSI Included" labelOff="SSI Excluded" note="Include surgical site infections — adds wound culture volume and SSI HAI counts to the model"/>
               <Toggle on={showQALY} onClick={()=>setShowQALY(!showQALY)} labelOn="QALY Layer On" labelOff="QALY Layer Off" note="Show cost per quality-adjusted life year on each model card, using HAI mortality rates and 5 QALYs per death averted"/>
+              <Toggle on={inHACRP} onClick={()=>setInHACRP(!inHACRP)} labelOn="HACRP Penalty: Yes" labelOff="HACRP Penalty: No" note={inHACRP?`Hospital is currently penalized ${fm(medRev*0.01)}/yr — included in net value`:"Hospital is not in the CMS 1% Medicare penalty. Toggle on if penalized."}/>
+
               <div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
                 <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:700,marginBottom:3}}>Cost Perspective</div>
                 <div style={{fontSize:10,color:C.txt3,marginBottom:7,lineHeight:1.4}}>Total = full attributable HAI cost. Variable = avoidable portion only (~65%), the more conservative and methodologically preferred estimate for hospital budgeting (Graves 2007).</div>
@@ -1093,9 +1071,6 @@ export default function App() {
               <SInput label="Avg Cluster Size (cases)" value={adv.avgCluster} onChange={v=>setAdvField("avgCluster",Math.max(2,Math.min(12,v)))} min={2} max={12}/>
               <Slider label="M4 Reservoir ID Rate" value={adv.m4ReservoirRate} min={0.10} max={0.90} step={0.05}
                 onChange={v=>setAdvField("m4ReservoirRate",v)} format={pct} hint="M4 only: % of retrospective outbreaks where WGS identifies persistent reservoir. Default 55% (Bhargava 2021, R13)."/>
-              <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7,marginTop:4}}>HACRP Model</div>
-              <Slider label="HACRP Baseline Exposure" value={adv.hacExpFrac} min={0.10} max={0.80} step={0.05}
-                onChange={v=>setAdvField("hacExpFrac",v)} format={pct} hint="Fraction of max penalty hospitals are exposed to at baseline. Default 40%. Binary in reality — modeled continuously."/>
               <div style={{fontSize:9,fontWeight:700,color:C.txt2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3,marginTop:4}}>Detection Rates by Model</div>
               <div style={{fontSize:10,color:C.txt3,marginBottom:8,lineHeight:1.4}}>Fraction of true genomic transmission clusters that each model would detect. Expert-derived from outbreak literature; M1/M2 are sampled in PSA, M3/M4 held fixed.</div>
               {MODELS.map((m,i)=>{
@@ -1148,20 +1123,20 @@ export default function App() {
                 </div>
                 <BreakdownTable models={MODELS} allData={allData} incSSI={incSSI} costTable={costTable} navToRef={navToRef}/>
               </div>
-              <div style={card}>
-                <div style={{fontSize:10,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.07em",fontWeight:700,marginBottom:14}}>HACRP Penalty Exposure · Max {fm(medRev*0.01)}/yr</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-                  {MODELS.map(m=>{const d=allData[m.id].hacrp; return (
-                    <div key={m.id}>
-                      <div style={{fontSize:10,color:m.color,marginBottom:9,fontWeight:700}}>{m.label} · {m.name}</div>
-                      {[["Baseline",fm(d.baselineExposure),C.txt2],["After WGS",fm(d.reducedExposure),m.color],["Savings","+"+fm(d.saved),C.green]].map(([k,v,c])=>(
-                        <div key={k} style={{marginBottom:7}}>
-                          <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{k}</div>
-                          <div style={{fontSize:13,color:c,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{v}</div>
-                        </div>
-                      ))}
+              <div style={{...card,display:"flex",alignItems:"flex-start",gap:20,flexWrap:"wrap"}}>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontSize:10,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.07em",fontWeight:700,marginBottom:6}}>HACRP — CMS 1% Medicare Penalty</div>
+                  <div style={{fontSize:12,color:C.txt2,lineHeight:1.6}}>
+                    CMS withholds <strong>1% of Medicare FFS revenue</strong> from the worst-performing 25% of hospitals on the Hospital-Acquired Condition composite score. This hospital's maximum penalty is <strong style={{color:C.teal}}>{fm(medRev*0.01)}/yr</strong>. Toggle in the sidebar whether this hospital is currently penalized.
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:24,flexShrink:0,flexWrap:"wrap"}}>
+                  {[["Max penalty",fm(medRev*0.01)],["Status",inHACRP?"Currently penalized":"Not penalized"],["Included in net value",inHACRP?fm(medRev*0.01)+"saved":"$0"]].map(([k,v])=>(
+                    <div key={k}>
+                      <div style={{fontSize:9,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3}}>{k}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:inHACRP&&k!=="Max penalty"?C.green:C.txt,fontVariantNumeric:"tabular-nums"}}>{v}</div>
                     </div>
-                  );})}
+                  ))}
                 </div>
               </div>
             </div>
@@ -1239,7 +1214,7 @@ export default function App() {
           {/* ── PSA & SENSITIVITY ── */}
           {tab==="psa"&&(
             <PSATab hospital={hospital} pFrac={pFrac} subFee={subFee} adHocPrice={adHocPrice}
-              incSSI={incSSI} useVar={useVar} tatIdx={tatIdx} adv={adv}
+              incSSI={incSSI} useVar={useVar} tatIdx={tatIdx} adv={adv} inHACRP={inHACRP}
               pricingMode={pricingMode} setPricingMode={setPricingMode}/>
           )}
 
